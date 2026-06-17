@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { extractBrandColor } from "@/lib/color";
 
 async function requireUser() {
   const supabase = await createClient();
@@ -138,15 +139,102 @@ export async function toggleGate(assetId: string, requireEmail: boolean) {
   revalidatePath("/dashboard/assets");
 }
 
-export async function saveImageUrl(kind: "avatar" | "logo", url: string) {
+export async function saveImageUrl(
+  kind: "avatar" | "logo",
+  url: string,
+): Promise<{ brandColor?: string }> {
   const { supabase, user } = await requireUser();
   const column = kind === "avatar" ? "avatar_url" : "logo_url";
-  await supabase
-    .from("profiles")
-    .update({ [column]: url })
-    .eq("id", user.id);
+
+  const update: Record<string, string> = { [column]: url };
+
+  // When a logo is set, tailor the visitor page theme to it by deriving a
+  // brand colour from the logo's most vibrant tone.
+  let derived: string | undefined;
+  if (kind === "logo") {
+    const color = await extractBrandColor(url);
+    if (color) {
+      update.brand_color = color;
+      derived = color;
+    }
+  }
+
+  await supabase.from("profiles").update(update).eq("id", user.id);
   revalidatePath("/dashboard/profile");
   revalidatePath("/dashboard");
+  return derived ? { brandColor: derived } : {};
+}
+
+// Adds a custom link block at the end of the list.
+export async function addLink(input: {
+  label: string;
+  url: string;
+}): Promise<ActionResult> {
+  const { supabase, user } = await requireUser();
+
+  const label = input.label.trim();
+  let url = input.url.trim();
+  if (!label) return { error: "Give the link a label." };
+  if (!url) return { error: "Add a URL." };
+  if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+  try {
+    new URL(url);
+  } catch {
+    return { error: "That doesn't look like a valid URL." };
+  }
+
+  const { count } = await supabase
+    .from("link_blocks")
+    .select("id", { count: "exact", head: true })
+    .eq("profile_id", user.id);
+
+  const { error } = await supabase.from("link_blocks").insert({
+    profile_id: user.id,
+    type: "custom",
+    label,
+    url,
+    position: count ?? 99,
+    enabled: true,
+  });
+
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/profile");
+  return { ok: true };
+}
+
+// Updates a custom link's label/URL.
+export async function updateLink(input: {
+  blockId: string;
+  label: string;
+  url: string;
+}): Promise<ActionResult> {
+  const { supabase, user } = await requireUser();
+  const label = input.label.trim();
+  let url = input.url.trim();
+  if (!label) return { error: "Give the link a label." };
+  if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+
+  const { error } = await supabase
+    .from("link_blocks")
+    .update({ label, url })
+    .eq("id", input.blockId)
+    .eq("profile_id", user.id);
+
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/profile");
+  return { ok: true };
+}
+
+// Deletes a link block. Document blocks are managed from the Assets tab, so
+// this is only surfaced for custom links in the UI.
+export async function deleteBlock(blockId: string) {
+  const { supabase, user } = await requireUser();
+  await supabase
+    .from("link_blocks")
+    .delete()
+    .eq("id", blockId)
+    .eq("profile_id", user.id);
+  revalidatePath("/dashboard/profile");
 }
 
 // Registers a freshly-uploaded PDF: creates the asset row and a matching

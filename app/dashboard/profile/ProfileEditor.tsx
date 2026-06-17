@@ -13,6 +13,8 @@ import {
   toggleBlock,
   setLive,
   moveBlock,
+  addLink,
+  deleteBlock,
   type ActionResult,
 } from "../actions";
 import { DEFAULT_BRAND_COLOR, type LinkBlock, type Profile } from "@/lib/types";
@@ -66,10 +68,46 @@ export default function ProfileEditor({
       return;
     }
     const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-    await saveImageUrl(kind, data.publicUrl);
-    if (kind === "avatar") setAvatar(data.publicUrl);
-    else setLogo(data.publicUrl);
-    setToast(kind === "avatar" ? "Photo updated ✓" : "Logo updated ✓");
+    const result = await saveImageUrl(kind, data.publicUrl);
+    if (kind === "avatar") {
+      setAvatar(data.publicUrl);
+      setToast("Photo updated ✓");
+    } else {
+      setLogo(data.publicUrl);
+      if (result?.brandColor) {
+        setBrandColor(result.brandColor);
+        setToast("Logo added ✓ — theme matched to it");
+      } else {
+        setToast("Logo updated ✓");
+      }
+    }
+  }
+
+  const [newLabel, setNewLabel] = useState("");
+  const [newUrl, setNewUrl] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [linkErr, setLinkErr] = useState("");
+
+  async function onAddLink() {
+    setLinkErr("");
+    setAdding(true);
+    const res = await addLink({ label: newLabel, url: newUrl });
+    setAdding(false);
+    if (res.error) {
+      setLinkErr(res.error);
+      return;
+    }
+    setNewLabel("");
+    setNewUrl("");
+    setToast("Link added ✓");
+    router.refresh();
+  }
+
+  async function onDeleteBlock(blockId: string) {
+    if (!confirm("Remove this link?")) return;
+    await deleteBlock(blockId);
+    router.refresh();
+    setToast("Link removed");
   }
 
   async function onToggle(b: LinkBlock, next: boolean) {
@@ -213,7 +251,8 @@ export default function ProfileEditor({
             fontWeight: 600,
           }}
         >
-          Logo detected — your visitor page header shows it automatically.
+          Logo set — it now headers your visitor page, and the page theme is
+          matched to its colours. Fine-tune the colour below if you like.
         </div>
       )}
 
@@ -235,7 +274,10 @@ export default function ProfileEditor({
           Tints your name, buttons and icons on your visitor page.
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          {BRAND_SWATCHES.map((c) => {
+          {(BRAND_SWATCHES.some((c) => c.toLowerCase() === brandColor.toLowerCase())
+            ? BRAND_SWATCHES
+            : [brandColor, ...BRAND_SWATCHES]
+          ).map((c) => {
             const selected = c.toLowerCase() === brandColor.toLowerCase();
             return (
               <button
@@ -260,7 +302,10 @@ export default function ProfileEditor({
 
       {/* link blocks */}
       <div style={{ ...card, padding: "16px 18px" }}>
-        <div style={{ ...sectionLabel, marginBottom: 13 }}>Link blocks</div>
+        <div style={{ ...sectionLabel, marginBottom: 4 }}>Links</div>
+        <div style={{ fontSize: 12.5, color: "#9aa0a8", marginBottom: 13 }}>
+          Reorder with the arrows; toggle to show or hide on your page.
+        </div>
         <div style={{ display: "flex", flexDirection: "column" }}>
           {blocks.map((b, i) => (
             <div
@@ -285,20 +330,109 @@ export default function ProfileEditor({
                   onClick={() => onMove(b.id, "down")}
                 />
               </div>
-              <div style={{ flex: 1, fontSize: 14.5, fontWeight: 700 }}>
-                {b.label}
-                <span style={{ fontSize: 11.5, fontWeight: 600, color: "#9aa0a8", marginLeft: 8 }}>
-                  {b.type}
-                </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    fontSize: 14.5,
+                    fontWeight: 700,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {b.label}
+                </div>
+                <div
+                  style={{
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    color: "#9aa0a8",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {b.type === "custom" && b.url ? b.url : b.type}
+                </div>
               </div>
+              {b.type === "custom" && (
+                <button
+                  type="button"
+                  onClick={() => onDeleteBlock(b.id)}
+                  aria-label="Remove link"
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: 999,
+                    border: "none",
+                    background: "#f3f4f6",
+                    color: "#9aa0a8",
+                    fontSize: 15,
+                    lineHeight: 1,
+                    cursor: "pointer",
+                    flexShrink: 0,
+                  }}
+                >
+                  ×
+                </button>
+              )}
               <Switch on={!!blockState[b.id]} onChange={(next) => onToggle(b, next)} />
             </div>
           ))}
           {blocks.length === 0 && (
             <div style={{ fontSize: 13.5, color: "#9aa0a8" }}>
-              No blocks yet. Upload a document in Assets to add one.
+              No links yet. Add one below.
             </div>
           )}
+        </div>
+
+        {/* add a custom link */}
+        <div style={{ height: 1, background: "rgba(20,23,26,.06)", margin: "14px 0" }} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+          <input
+            value={newLabel}
+            onChange={(e) => {
+              setNewLabel(e.target.value);
+              setLinkErr("");
+            }}
+            placeholder="Link label (e.g. Book a call)"
+            style={{ ...input, fontSize: 14 }}
+          />
+          <input
+            value={newUrl}
+            onChange={(e) => {
+              setNewUrl(e.target.value);
+              setLinkErr("");
+            }}
+            placeholder="https://…"
+            inputMode="url"
+            autoCapitalize="none"
+            style={{ ...input, fontSize: 14 }}
+          />
+          {linkErr && (
+            <div style={{ fontSize: 12.5, color: "#e0584f", fontWeight: 600 }}>
+              {linkErr}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={onAddLink}
+            disabled={adding || !newLabel.trim() || !newUrl.trim()}
+            style={{
+              padding: 12,
+              borderRadius: 12,
+              border: "none",
+              background:
+                adding || !newLabel.trim() || !newUrl.trim() ? "#c8ccd2" : "#0c5c54",
+              color: "#fff",
+              fontSize: 14,
+              fontWeight: 700,
+              cursor:
+                adding || !newLabel.trim() || !newUrl.trim() ? "default" : "pointer",
+            }}
+          >
+            {adding ? "Adding…" : "+ Add link"}
+          </button>
         </div>
       </div>
 
