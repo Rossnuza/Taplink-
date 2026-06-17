@@ -30,13 +30,15 @@ export default function Switch({
         style={{
           position: "absolute",
           top: 3,
-          left: on ? 21 : 3,
+          left: 3,
           width: 22,
           height: 22,
           borderRadius: 999,
           background: "#fff",
           boxShadow: "0 1px 3px rgba(0,0,0,.25)",
-          transition: "left .18s ease",
+          transform: on ? "translateX(18px)" : "translateX(0)",
+          transition: "transform .2s cubic-bezier(.3,.8,.4,1)",
+          willChange: "transform",
         }}
       />
     </div>

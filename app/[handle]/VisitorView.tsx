@@ -383,6 +383,7 @@ function Button({
   if (isDoc) {
     return (
       <div
+        role="button"
         onClick={() => onClick(b)}
         style={{
           display: "flex",
@@ -419,6 +420,7 @@ function Button({
   }
   return (
     <div
+      role="button"
       onClick={() => onClick(b)}
       style={{
         display: "flex",
@@ -711,6 +713,7 @@ function BigBtn({
 }) {
   return (
     <div
+      role="button"
       onClick={onClick}
       style={{
         height: sub ? 62 : 54,

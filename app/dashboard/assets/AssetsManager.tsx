@@ -116,6 +116,7 @@ export default function AssetsManager({
       <div style={pageTitle}>Assets</div>
 
       <div
+        role="button"
         onClick={() => fileInput.current?.click()}
         style={{
           border: "1.5px dashed rgba(12,92,84,.35)",

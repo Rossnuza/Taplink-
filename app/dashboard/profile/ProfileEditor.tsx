@@ -356,6 +356,7 @@ function ImagePicker({
   const radius = round ? 999 : 16;
   return (
     <div
+      role="button"
       onClick={onPick}
       style={{
         width: 72,
