@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+/* ----------------------------------------------------------------------------
+   TapLink — Direction A "Classic Clean" design tokens
+   Light, neutral, calm. White cards on grey. Teal + gold accents.
+---------------------------------------------------------------------------- */
+@theme {
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+
+  --color-ink: #14171a;
+  --color-ink-soft: #46505c;
+  --color-muted: #6b7280;
+  --color-faint: #9aa0a8;
+  --color-hairline: #c2c7ce;
+
+  --color-canvas: #f4f5f7;
+  --color-surface: #ffffff;
+
+  --color-teal: #0c5c54;
+  --color-teal-soft: #e2f1ee;
+  --color-teal-wash: #eaf4f1;
+
+  --color-gold: #b5832a;
+  --color-gold-soft: #fbf0dd;
+
+  --color-blue: #1b66c9;
+  --color-blue-soft: #e8f0fe;
+
+  --color-positive: #1e9e63;
+  --color-positive-soft: #e4f6ec;
+
+  --color-danger: #c0463b;
+  --color-danger-soft: #fce9e7;
+
+  --radius-card: 18px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes sheetUp {
+  from { transform: translateY(102%); }
+  to { transform: translateY(0); }
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
