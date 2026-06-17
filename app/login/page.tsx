@@ -31,8 +31,14 @@ function LoginForm() {
       options: { emailRedirectTo: redirect },
     });
     if (error) {
+      console.error("signInWithOtp failed:", error);
+      const raw = error.message?.trim();
+      const friendly =
+        !raw || raw === "{}" || raw.startsWith("{")
+          ? "Couldn't send the link right now. Please try again in a moment."
+          : raw;
       setStatus("error");
-      setMessage(error.message);
+      setMessage(friendly);
     } else {
       setStatus("sent");
     }
