@@ -23,6 +23,7 @@ interface Props {
   bio: string | null;
   company: string | null;
   avatarUrl: string | null;
+  logoUrl: string | null;
   brandColor: string;
   buttons: VisitorButton[];
   source: string | null;
@@ -35,6 +36,25 @@ function initials(name: string): string {
   return parts.map((p) => p[0]?.toUpperCase() ?? "").join("") || "·";
 }
 
+// Pure, client-safe colour helpers (the sharp-based extractor lives server-side).
+function hexToRgba(hex: string, a: number): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return `rgba(12,92,84,${a})`;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+
+function readableOn(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return "#fff";
+  const n = parseInt(m[1], 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
+    const s = v / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.55 ? "#14171a" : "#fff";
+}
+
 export default function VisitorView(props: Props) {
   const {
     handle,
@@ -43,6 +63,7 @@ export default function VisitorView(props: Props) {
     bio,
     company,
     avatarUrl,
+    logoUrl,
     brandColor,
     buttons,
     source,
@@ -162,50 +183,92 @@ export default function VisitorView(props: Props) {
           flexDirection: "column",
         }}
       >
-        {/* brand pill */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            marginBottom: 30,
-          }}
-        >
+        {/* logo banner — a brand-tinted header the avatar overlaps */}
+        {logoUrl && (
+          <div
+            style={{
+              margin: "-56px -22px 0",
+              padding: "calc(34px + env(safe-area-inset-top, 0px)) 22px 60px",
+              background: `linear-gradient(180deg, ${hexToRgba(
+                brandColor,
+                0.18,
+              )} 0%, ${hexToRgba(brandColor, 0.05)} 65%, #fff 100%)`,
+              display: "flex",
+              justifyContent: "center",
+            }}
+          >
+            <div
+              style={{
+                background: "#fff",
+                borderRadius: 16,
+                padding: "12px 22px",
+                boxShadow: "0 6px 22px rgba(20,23,26,.1)",
+                maxWidth: "75%",
+                display: "flex",
+                justifyContent: "center",
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={logoUrl}
+                alt={company ?? displayName}
+                style={{
+                  maxHeight: 46,
+                  maxWidth: "100%",
+                  objectFit: "contain",
+                  display: "block",
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* brand pill — only when there's no logo */}
+        {!logoUrl && (
           <div
             style={{
               display: "flex",
-              alignItems: "center",
-              gap: 7,
-              padding: "6px 13px",
-              borderRadius: 999,
-              border: "1px solid rgba(20,23,26,.1)",
+              justifyContent: "center",
+              marginBottom: 30,
             }}
           >
-            {company && (
-              <>
-                <span
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 800,
-                    letterSpacing: ".04em",
-                    color: brandColor,
-                  }}
-                >
-                  {company}
-                </span>
-                <span
-                  style={{
-                    width: 1,
-                    height: 12,
-                    background: "rgba(20,23,26,.14)",
-                  }}
-                />
-              </>
-            )}
-            <span style={{ fontSize: 12.5, fontWeight: 500, color: "#9aa0a8" }}>
-              taplink.app/{handle}
-            </span>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
+                padding: "6px 13px",
+                borderRadius: 999,
+                border: "1px solid rgba(20,23,26,.1)",
+              }}
+            >
+              {company && (
+                <>
+                  <span
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 800,
+                      letterSpacing: ".04em",
+                      color: brandColor,
+                    }}
+                  >
+                    {company}
+                  </span>
+                  <span
+                    style={{
+                      width: 1,
+                      height: 12,
+                      background: "rgba(20,23,26,.14)",
+                    }}
+                  />
+                </>
+              )}
+              <span style={{ fontSize: 12.5, fontWeight: 500, color: "#9aa0a8" }}>
+                taplink.app/{handle}
+              </span>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* identity */}
         <div
@@ -214,6 +277,7 @@ export default function VisitorView(props: Props) {
             flexDirection: "column",
             alignItems: "center",
             textAlign: "center",
+            marginTop: logoUrl ? -44 : 0,
           }}
         >
           <Avatar name={displayName} url={avatarUrl} brandColor={brandColor} />
@@ -303,6 +367,7 @@ export default function VisitorView(props: Props) {
             emailErr={emailErr}
             sending={sending}
             ownerName={displayName}
+            brandColor={brandColor}
             onClose={closeSheet}
             onView={chooseView}
             onToEmail={() => setSheet("email")}
@@ -381,8 +446,12 @@ function Button({
 }) {
   const isDoc = b.type === "document";
   if (isDoc) {
+    const onBrand = readableOn(brandColor);
+    const soft =
+      onBrand === "#fff" ? "rgba(255,255,255,.66)" : "rgba(20,23,26,.6)";
     return (
       <div
+        role="button"
         onClick={() => onClick(b)}
         style={{
           display: "flex",
@@ -390,21 +459,21 @@ function Button({
           gap: 14,
           padding: "17px 18px",
           borderRadius: 16,
-          background: "#14171a",
+          background: brandColor,
           cursor: "pointer",
-          boxShadow: "0 10px 24px rgba(20,23,26,.22)",
+          boxShadow: `0 10px 24px ${hexToRgba(brandColor, 0.32)}`,
         }}
       >
-        <Icon type={b.type} color="#c8a86a" />
+        <Icon type={b.type} color={onBrand} />
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 15.5, fontWeight: 700, color: "#fff" }}>
+          <div style={{ fontSize: 15.5, fontWeight: 700, color: onBrand }}>
             {b.label}
           </div>
           <div
             style={{
               fontSize: 12.5,
               fontWeight: 500,
-              color: "rgba(255,255,255,.6)",
+              color: soft,
               marginTop: 1,
             }}
           >
@@ -413,12 +482,13 @@ function Button({
               : "PDF · view now, or email it to you"}
           </div>
         </div>
-        <Chevron color="rgba(255,255,255,.4)" />
+        <Chevron color={soft} />
       </div>
     );
   }
   return (
     <div
+      role="button"
       onClick={() => onClick(b)}
       style={{
         display: "flex",
@@ -453,6 +523,7 @@ function DocumentSheet(props: {
   emailErr: string;
   sending: boolean;
   ownerName: string;
+  brandColor: string;
   onClose: () => void;
   onView: () => void;
   onToEmail: () => void;
@@ -461,7 +532,7 @@ function DocumentSheet(props: {
   onSubmit: () => void;
   onDone: () => void;
 }) {
-  const { asset, state } = props;
+  const { asset, state, brandColor } = props;
   return (
     <div
       onClick={props.onClose}
@@ -520,6 +591,7 @@ function DocumentSheet(props: {
                 label="View in browser"
                 sub="Opens the PDF right now"
                 primary
+                brandColor={brandColor}
                 onClick={props.onView}
               />
               <BigBtn
@@ -601,6 +673,7 @@ function DocumentSheet(props: {
             <BigBtn
               label={props.sending ? "Sending…" : "Send it to me"}
               primary
+              brandColor={brandColor}
               onClick={props.onSubmit}
               style={{ marginTop: 12 }}
             />
@@ -647,6 +720,7 @@ function DocumentSheet(props: {
             <BigBtn
               label="Done"
               primary
+              brandColor={brandColor}
               onClick={props.onDone}
               style={{ marginTop: 22 }}
             />
@@ -700,17 +774,22 @@ function BigBtn({
   label,
   sub,
   primary,
+  brandColor,
   onClick,
   style,
 }: {
   label: string;
   sub?: string;
   primary?: boolean;
+  brandColor?: string;
   onClick: () => void;
   style?: React.CSSProperties;
 }) {
+  const bg = primary ? brandColor ?? "#14171a" : "transparent";
+  const fg = primary ? readableOn(bg) : "#14171a";
   return (
     <div
+      role="button"
       onClick={onClick}
       style={{
         height: sub ? 62 : 54,
@@ -721,8 +800,8 @@ function BigBtn({
         justifyContent: "center",
         gap: 2,
         cursor: "pointer",
-        background: primary ? "#14171a" : "transparent",
-        color: primary ? "#fff" : "#14171a",
+        background: bg,
+        color: fg,
         border: primary ? "none" : "1px solid rgba(20,23,26,.1)",
         ...style,
       }}

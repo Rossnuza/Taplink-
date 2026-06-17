@@ -74,6 +74,7 @@ export default async function VisitorPage({
       bio={profile.bio}
       company={profile.company}
       avatarUrl={profile.avatar_url}
+      logoUrl={profile.logo_url}
       brandColor={profile.brand_color || DEFAULT_BRAND_COLOR}
       buttons={buttons}
       source={source}

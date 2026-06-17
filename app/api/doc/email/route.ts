@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logEvent } from "@/lib/events";
-import { sendDocumentEmail } from "@/lib/email";
+import { sendDocumentEmail, sendLeadNotification } from "@/lib/email";
 import { parseVisitorMeta, isValidEmail } from "@/lib/request";
-import { isSupabaseConfigured } from "@/lib/env";
+import { isSupabaseConfigured, getSiteUrl } from "@/lib/env";
 import type { Asset, Profile } from "@/lib/types";
 
 // "Email it to me" — captures the lead, logs the event, and emails a signed
@@ -74,6 +74,24 @@ export async function POST(request: Request) {
       ownerName: profile.display_name || profile.handle,
       documentTitle: asset.title,
       documentUrl: signed.signedUrl,
+    });
+  }
+
+  // Notify the owner. Prefer their contact email, else the account email.
+  let ownerEmail = profile.contact_email;
+  if (!ownerEmail) {
+    const { data: authUser } = await admin.auth.admin.getUserById(profile.id);
+    ownerEmail = authUser?.user?.email ?? null;
+  }
+  if (ownerEmail) {
+    await sendLeadNotification({
+      to: ownerEmail,
+      leadEmail: email.trim(),
+      documentTitle: asset.title,
+      country: meta.country,
+      device: meta.device,
+      source: source ?? null,
+      leadsUrl: `${getSiteUrl()}/dashboard/leads`,
     });
   }
 

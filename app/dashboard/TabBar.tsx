@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const TABS = [
   { href: "/dashboard", label: "Home", icon: HomeIcon, exact: true },
+  { href: "/dashboard/analytics", label: "Stats", icon: StatsIcon },
   { href: "/dashboard/profile", label: "Profile", icon: ProfileIcon },
   { href: "/dashboard/assets", label: "Assets", icon: AssetsIcon },
   { href: "/dashboard/share", label: "Share", icon: ShareIcon },
@@ -70,6 +71,13 @@ function HomeIcon() {
   return (
     <svg {...sized}>
       <path d="M4 13h5v7H4zM10 8h5v12h-5zM16 4h4v16h-4z" />
+    </svg>
+  );
+}
+function StatsIcon() {
+  return (
+    <svg {...sized}>
+      <path d="M4 19V5M4 19h16M8 19v-6M12 19V9M16 19v-9" />
     </svg>
   );
 }

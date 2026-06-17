@@ -2,7 +2,6 @@
 
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/env";
 
 function LoginForm() {
@@ -24,17 +23,22 @@ function LoginForm() {
       return;
     }
     setStatus("sending");
-    const supabase = createClient();
-    const redirect = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { emailRedirectTo: redirect },
-    });
-    if (error) {
+    try {
+      const res = await fetch("/api/auth/send-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), next }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setStatus("error");
+        setMessage(body.error ?? "Couldn't send the link right now. Please try again.");
+      } else {
+        setStatus("sent");
+      }
+    } catch {
       setStatus("error");
-      setMessage(error.message);
-    } else {
-      setStatus("sent");
+      setMessage("Network error. Check your connection and try again.");
     }
   }
 
