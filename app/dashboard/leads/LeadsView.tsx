@@ -28,7 +28,8 @@ export default function LeadsView({ leads }: { leads: LeadRow[] }) {
     return leads.filter((l) => l.assetTitle === filter);
   }, [leads, filter]);
 
-  function exportCsv() {
+  async function exportCsv() {
+    if (leads.length === 0) return;
     const header = ["email", "document", "source", "country", "device", "captured_at"];
     const rows = leads.map((l) => [
       l.email,
@@ -41,10 +42,35 @@ export default function LeadsView({ leads }: { leads: LeadRow[] }) {
     const csv = [header, ...rows]
       .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
       .join("\n");
+
+    const filename = `taplink-leads-${new Date().toISOString().slice(0, 10)}.csv`;
+    const file = new File([csv], filename, { type: "text/csv" });
+
+    // On mobile, the native share sheet lets you Save to Files, email, or
+    // AirDrop the CSV — a plain download link just opens it in Safari.
+    const nav = navigator as Navigator & {
+      canShare?: (data: { files: File[] }) => boolean;
+    };
+    if (typeof nav.canShare === "function" && nav.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: "TapLink leads",
+          text: `${leads.length} leads from TapLink`,
+        });
+        setToast(`Shared ${leads.length} leads`);
+        return;
+      } catch (err) {
+        // User dismissed the share sheet — not an error, just stop.
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        // Anything else: fall through to the download path below.
+      }
+    }
+
     const blob = new Blob([csv], { type: "text/csv" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "taplink-leads.csv";
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(a.href);
     setToast(`Exported ${leads.length} leads`);
