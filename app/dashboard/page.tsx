@@ -100,6 +100,53 @@ export default async function HomePage() {
         <Stat value={m.newLeads} label="New leads" accent />
       </div>
 
+      {/* top links */}
+      {m.topLinks.length > 0 && (
+        <div style={{ ...card, padding: "16px 18px" }}>
+          <div style={{ ...sectionLabel, marginBottom: 13 }}>Top links</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
+            {m.topLinks.map((link) => {
+              const max = Math.max(...m.topLinks.map((l) => l.count));
+              return (
+                <div key={link.label}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      fontSize: 13.5,
+                      fontWeight: 700,
+                      marginBottom: 5,
+                    }}
+                  >
+                    <span
+                      style={{
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        maxWidth: 220,
+                      }}
+                    >
+                      {link.label}
+                    </span>
+                    <span style={{ color: "#9aa0a8" }}>{link.count}</span>
+                  </div>
+                  <div style={{ height: 6, borderRadius: 999, background: "#eef0f3" }}>
+                    <div
+                      style={{
+                        height: "100%",
+                        width: `${Math.max(8, (link.count / max) * 100)}%`,
+                        borderRadius: 999,
+                        background: "#0c5c54",
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* recent leads */}
       <div style={{ ...card, padding: "16px 18px" }}>
         <div style={{ ...sectionLabel, marginBottom: 13 }}>Recent leads</div>

@@ -7,7 +7,7 @@ import { card, pageTitle, sectionLabel } from "@/components/ui";
 import Switch from "@/components/Switch";
 import Toast from "@/components/Toast";
 import { formatBytes } from "@/lib/format";
-import { registerAsset, toggleGate, deleteAsset } from "../actions";
+import { registerAsset, toggleGate, deleteAsset, replaceAsset } from "../actions";
 import type { Asset } from "@/lib/types";
 
 export interface AssetWithStats extends Asset {
@@ -24,8 +24,11 @@ export default function AssetsManager({
 }) {
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
+  const replaceInput = useRef<HTMLInputElement>(null);
+  const replacingId = useRef<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [replacingFor, setReplacingFor] = useState<string | null>(null);
   const [gate, setGate] = useState(
     Object.fromEntries(assets.map((a) => [a.id, a.require_email])),
   );
@@ -55,6 +58,40 @@ export default function AssetsManager({
       return;
     }
     setToast("Uploaded ✓");
+    router.refresh();
+  }
+
+  function startReplace(assetId: string) {
+    replacingId.current = assetId;
+    replaceInput.current?.click();
+  }
+
+  async function onReplaceFile(file: File) {
+    const assetId = replacingId.current;
+    replacingId.current = null;
+    if (!assetId) return;
+    if (file.type !== "application/pdf") {
+      setToast("Please choose a PDF.");
+      return;
+    }
+    setReplacingFor(assetId);
+    const supabase = createClient();
+    const path = `${profileId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+    const { error } = await supabase.storage
+      .from("documents")
+      .upload(path, file, { upsert: false });
+    if (error) {
+      setToast(error.message);
+      setReplacingFor(null);
+      return;
+    }
+    const res = await replaceAsset({ assetId, storagePath: path, fileSize: file.size });
+    setReplacingFor(null);
+    if (res.error) {
+      setToast(res.error);
+      return;
+    }
+    setToast("Document replaced ✓ — QR unchanged");
     router.refresh();
   }
 
@@ -119,6 +156,16 @@ export default function AssetsManager({
         hidden
         onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])}
       />
+      <input
+        ref={replaceInput}
+        type="file"
+        accept="application/pdf"
+        hidden
+        onChange={(e) => {
+          if (e.target.files?.[0]) onReplaceFile(e.target.files[0]);
+          e.target.value = "";
+        }}
+      />
 
       {assets.length === 0 && (
         <div style={{ ...card, padding: 18, fontSize: 13.5, color: "#9aa0a8" }}>
@@ -179,12 +226,20 @@ export default function AssetsManager({
           </div>
 
           <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+            <button
+              type="button"
+              onClick={() => startReplace(a.id)}
+              disabled={replacingFor === a.id}
+              style={ghostBtn}
+            >
+              {replacingFor === a.id ? "Replacing…" : "Replace"}
+            </button>
             <button type="button" onClick={() => onDelete(a.id)} style={ghostBtn}>
               Delete
             </button>
           </div>
           <div style={{ fontSize: 11.5, color: "#9aa0a8", marginTop: 10, textAlign: "center" }}>
-            Your QR never changes when you swap documents.
+            Replacing keeps the same QR — only the file changes.
           </div>
         </div>
       ))}

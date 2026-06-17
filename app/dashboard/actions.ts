@@ -28,6 +28,11 @@ export async function saveProfile(
     return v == null ? null : String(v).trim() || null;
   };
 
+  // Only accept a valid hex colour; otherwise leave it unset (null).
+  const rawColor = str("brand_color");
+  const brandColor =
+    rawColor && /^#[0-9a-fA-F]{6}$/.test(rawColor) ? rawColor : null;
+
   const { error } = await supabase
     .from("profiles")
     .update({
@@ -39,6 +44,7 @@ export async function saveProfile(
       linkedin_url: str("linkedin_url"),
       contact_email: str("contact_email"),
       phone: str("phone"),
+      brand_color: brandColor,
     })
     .eq("id", user.id);
 
@@ -72,6 +78,53 @@ export async function toggleBlock(blockId: string, enabled: boolean) {
     .update({ enabled })
     .eq("id", blockId)
     .eq("profile_id", user.id);
+  revalidatePath("/dashboard/profile");
+}
+
+// Flips the public page on/off. When off, getPublicProfile returns null and
+// visitors see the "isn't live" page.
+export async function setLive(isLive: boolean) {
+  const { supabase, user } = await requireUser();
+  await supabase.from("profiles").update({ is_live: isLive }).eq("id", user.id);
+  revalidatePath("/dashboard/profile");
+  revalidatePath("/dashboard");
+}
+
+// Moves a block one step up or down by swapping its position with its
+// neighbour. Positions are kept dense and ordered.
+export async function moveBlock(blockId: string, direction: "up" | "down") {
+  const { supabase, user } = await requireUser();
+
+  const { data: rows } = await supabase
+    .from("link_blocks")
+    .select("id, position")
+    .eq("profile_id", user.id)
+    .order("position", { ascending: true });
+
+  const blocks = (rows as { id: string; position: number }[]) ?? [];
+  const index = blocks.findIndex((b) => b.id === blockId);
+  if (index === -1) return;
+
+  const swapWith = direction === "up" ? index - 1 : index + 1;
+  if (swapWith < 0 || swapWith >= blocks.length) return;
+
+  const a = blocks[index];
+  const b = blocks[swapWith];
+
+  // Swap their stored positions.
+  await Promise.all([
+    supabase
+      .from("link_blocks")
+      .update({ position: b.position })
+      .eq("id", a.id)
+      .eq("profile_id", user.id),
+    supabase
+      .from("link_blocks")
+      .update({ position: a.position })
+      .eq("id", b.id)
+      .eq("profile_id", user.id),
+  ]);
+
   revalidatePath("/dashboard/profile");
 }
 
@@ -134,6 +187,47 @@ export async function registerAsset(input: {
 
   revalidatePath("/dashboard/assets");
   revalidatePath("/dashboard/profile");
+  return { ok: true };
+}
+
+// Swaps the file behind an existing asset: the asset id (and therefore the QR
+// and every existing link) stays the same, the version bumps, and the old file
+// is removed from storage. The matching document block keeps its label.
+export async function replaceAsset(input: {
+  assetId: string;
+  storagePath: string;
+  fileSize: number;
+}): Promise<ActionResult> {
+  const { supabase, user } = await requireUser();
+
+  const { data: existing } = await supabase
+    .from("assets")
+    .select("storage_path, version")
+    .eq("id", input.assetId)
+    .eq("profile_id", user.id)
+    .maybeSingle();
+
+  if (!existing) return { error: "Document not found" };
+  const old = existing as { storage_path: string; version: number };
+
+  const { error } = await supabase
+    .from("assets")
+    .update({
+      storage_path: input.storagePath,
+      file_size: input.fileSize,
+      version: old.version + 1,
+    })
+    .eq("id", input.assetId)
+    .eq("profile_id", user.id);
+
+  if (error) return { error: error.message };
+
+  // Remove the superseded file (best-effort).
+  if (old.storage_path && old.storage_path !== input.storagePath) {
+    await supabase.storage.from("documents").remove([old.storage_path]);
+  }
+
+  revalidatePath("/dashboard/assets");
   return { ok: true };
 }
 
